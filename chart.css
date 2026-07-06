@@ -1,0 +1,12 @@
+.chart { color:#65748a; text-decoration:none; display:block; }
+.chart-cell { width:165px; padding-top:7px; padding-bottom:7px; }
+.candle-chart { display:block; width:142px; height:42px; margin-left:auto; background:linear-gradient(#edf0f5 1px,transparent 1px); background-size:100% 14px; border-radius:5px; }
+.chart-empty { font-size:11px; color:#a3adba; }
+.chart-hover { cursor:crosshair; }
+.chart-tooltip { position:fixed; z-index:1000; width:min(880px,calc(100vw - 24px)); height:380px; padding:18px; background:#101f35; color:#fff; border:1px solid #314763; border-radius:14px; box-shadow:0 22px 70px #07101fcc; pointer-events:none; opacity:0; visibility:hidden; transform:translateY(5px); transition:opacity .12s,transform .12s; }
+.chart-tooltip.show { opacity:1; visibility:visible; transform:none; }
+.chart-tooltip-head { height:30px; display:flex; justify-content:space-between; align-items:flex-start; }
+.chart-tooltip-head strong { font-size:15px; }
+.chart-tooltip-head span { color:#98abc2; font-size:11px; }
+.chart-large-loading { height:320px; display:grid; place-items:center; color:#98abc2; }
+.candle-chart-large { width:100%; height:320px; margin:0; background:repeating-linear-gradient(to bottom,#1b304b 0,#1b304b 1px,transparent 1px,transparent 64px); }

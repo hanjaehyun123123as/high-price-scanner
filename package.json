@@ -1,0 +1,9 @@
+{
+  "name": "kr-high-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "update": "node update-data.mjs"
+  }
+}

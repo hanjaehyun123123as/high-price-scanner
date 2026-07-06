@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>신고가 레이더</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="chart.css"></head>
+<body>
+  <header><div><p class="eyebrow">KOREA MARKET SCANNER</p><h1>신고가 <span>레이더</span></h1><p class="subtitle">52주 고점에 가까워지는 종목을 빠르게 포착합니다.</p></div><button id="refresh" class="primary">↻ 오늘 데이터 갱신</button></header>
+  <main>
+    <section class="hero-grid">
+      <article class="metric"><div class="icon red">↗</div><div><small>검색 종목</small><strong id="matchCount">—</strong><em>조건 통과</em></div></article>
+      <article class="metric"><div class="icon gold">◎</div><div><small>신고가 5% 이내</small><strong id="nearCount">—</strong><em>초근접 종목</em></div></article>
+      <article class="metric"><div class="icon blue">▥</div><div><small>평균 거래대금</small><strong id="avgValue">—</strong><em>현재가 × 거래량</em></div></article>
+      <article class="metric status-card"><div class="pulse"></div><div><small>데이터 상태</small><strong id="dataDate">데이터 없음</strong><em id="statusText">갱신 버튼을 눌러주세요</em></div></article>
+    </section>
+    <section class="panel filters">
+      <div class="panel-title"><div><p class="eyebrow">SCREENING RULES</p><h2>검색 조건</h2></div><button id="reset" class="ghost">초기화</button></div>
+      <div class="filter-grid">
+        <label>52주 최고가 대비 <b id="distanceLabel">-20% 이상</b><input id="distance" type="range" min="1" max="40" value="20"><span class="range-label"><i>-1%</i><i>-40%</i></span></label>
+        <label>최소 시가총액 <b><input id="cap" type="number" value="2000" min="0"> 억원</b></label>
+        <label>1봉전 최소 거래량 <b><input id="volume" type="number" value="150000" min="0" step="10000"> 주</b></label>
+        <label>시장 <b><select id="market"><option value="ALL">전체 시장</option><option>KOSPI</option><option>KOSDAQ</option></select></b></label>
+      </div>
+    </section>
+    <section class="panel results">
+      <div class="panel-title"><div><p class="eyebrow">MATCHED STOCKS</p><h2>검색 결과 <span id="resultBadge">0</span></h2></div><div class="actions"><input id="search" placeholder="종목명 · 코드 검색"><button id="csv" class="ghost">CSV 저장</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th data-sort="name">종목</th><th data-sort="price">현재가</th><th data-sort="changeRate">등락률</th><th data-sort="high52">52주 최고가</th><th data-sort="distanceFromHigh">고점 대비</th><th data-sort="volume">1봉전 거래량</th><th data-sort="marketCap">시가총액</th><th>최근 일봉</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div id="empty" class="empty">데이터를 갱신하면 조건에 맞는 종목이 여기에 나타납니다.</div>
+    </section>
+    <p class="notice">※ 본 도구는 정보 제공용이며 투자 권유가 아닙니다. 실제 주문 전 증권사 시세를 확인하세요.</p>
+  </main>
+  <div id="chartTooltip" class="chart-tooltip" role="dialog" aria-hidden="true"><div class="chart-tooltip-head"><strong id="chartTitle">300봉 일봉</strong><span id="chartPeriod"></span></div><div id="chartLarge" class="chart-large-loading">불러오는 중…</div></div>
+  <script src="app.js"></script>
+</body></html>
