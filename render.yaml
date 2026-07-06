@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: high-price-scanner
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: APP_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

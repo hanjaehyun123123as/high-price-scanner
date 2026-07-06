@@ -2,14 +2,50 @@ import http from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
+const HOST = process.env.HOST || (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
+const APP_PASSWORD = process.env.APP_PASSWORD || '';
+const SESSION_SECRET = process.env.SESSION_SECRET || APP_PASSWORD;
+const COOKIE_NAME = 'high_scanner_session';
 let updater = null;
 const chartCache = new Map();
+const loginAttempts = new Map();
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
+const publicFiles = new Set(['/index.html', '/app.js', '/style.css', '/chart.css']);
+
+function safeEqual(a, b) {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function sessionToken() {
+  return crypto.createHmac('sha256', SESSION_SECRET).update('high-price-scanner').digest('hex');
+}
+
+function isAuthenticated(req) {
+  if (!APP_PASSWORD || !SESSION_SECRET) return false;
+  const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(v => v.trim().split('=').map(decodeURIComponent)).filter(v => v.length === 2));
+  return safeEqual(cookies[COOKIE_NAME] || '', sessionToken());
+}
+
+function loginPage(message = '') {
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>신고가 검색기 로그인</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0d1726;color:#eef4ff;font-family:system-ui,sans-serif}.card{width:min(360px,calc(100% - 40px));padding:34px;border:1px solid #29405c;border-radius:18px;background:#142238;box-shadow:0 18px 55px #0008}h1{font-size:24px;margin:0 0 8px}p{color:#9fb0c5;margin:0 0 24px}input,button{box-sizing:border-box;width:100%;padding:13px 14px;border-radius:10px;font-size:16px}input{border:1px solid #3a5270;background:#0d1726;color:white;margin-bottom:12px}button{border:0;background:#f5b942;color:#17263b;font-weight:800;cursor:pointer}.error{color:#ff8994;margin-bottom:14px}</style></head><body><form class="card" method="post" action="/login"><h1>신고가 검색기</h1><p>비밀번호를 입력하세요.</p>${message ? `<div class="error">${message}</div>` : ''}<input type="password" name="password" autocomplete="current-password" autofocus required><button type="submit">들어가기</button></form></body></html>`;
+}
+
+async function readForm(req) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > 4096) throw new Error('Too large');
+  }
+  return new URLSearchParams(body);
+}
 
 async function sendFile(res, file) {
   try {
@@ -21,6 +57,33 @@ async function sendFile(res, file) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (url.pathname === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
+  if (url.pathname === '/login' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(loginPage(APP_PASSWORD ? '' : '서버에 APP_PASSWORD 설정이 필요합니다.'));
+  }
+  if (url.pathname === '/login' && req.method === 'POST') {
+    const ip = req.socket.remoteAddress || 'unknown';
+    const attempt = loginAttempts.get(ip) || { count: 0, until: 0 };
+    if (attempt.until > Date.now()) { res.writeHead(429, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(loginPage('잠시 후 다시 시도하세요.')); }
+    const form = await readForm(req).catch(() => new URLSearchParams());
+    if (APP_PASSWORD && safeEqual(form.get('password') || '', APP_PASSWORD)) {
+      loginAttempts.delete(ip);
+      const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+      res.writeHead(303, { Location: '/', 'Set-Cookie': `${COOKIE_NAME}=${sessionToken()}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=2592000`, 'Cache-Control': 'no-store' });
+      return res.end();
+    }
+    attempt.count += 1;
+    if (attempt.count >= 5) { attempt.count = 0; attempt.until = Date.now() + 60_000; }
+    loginAttempts.set(ip, attempt);
+    res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(loginPage('비밀번호가 맞지 않습니다.'));
+  }
+  if (url.pathname === '/logout') {
+    res.writeHead(303, { Location: '/login', 'Set-Cookie': `${COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` });
+    return res.end();
+  }
+  if (!isAuthenticated(req)) { res.writeHead(303, { Location: '/login', 'Cache-Control': 'no-store' }); return res.end(); }
   if (url.pathname === '/api/chart') {
     const code = url.searchParams.get('code') || '';
     if (!/^\d{6}$/.test(code)) { res.writeHead(400); return res.end('Invalid code'); }
@@ -51,10 +114,12 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/status') return sendFile(res, path.join(ROOT, 'data', 'status.json'));
   if (url.pathname === '/api/stocks') return sendFile(res, path.join(ROOT, 'data', 'stocks.json'));
-  const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
+  const requested = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
+  if (!publicFiles.has(requested)) { res.writeHead(404); return res.end('Not found'); }
+  const rel = requested.slice(1);
   const file = path.resolve(ROOT, rel);
   if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end('Forbidden'); }
   return sendFile(res, file);
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log(`신고가 검색기: http://127.0.0.1:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`신고가 검색기: http://${HOST}:${PORT}`));
