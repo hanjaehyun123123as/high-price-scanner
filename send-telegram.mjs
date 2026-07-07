@@ -28,6 +28,7 @@ async function main() {
   for (const file of ENV_CANDIDATES) {
     try { env = parseEnv(await fs.readFile(file, 'utf8')); break; } catch {}
   }
+  env = { ...env, ...process.env };
   const token = env.TELEGRAM_BOT_TOKEN || env.TELEGRAM_COMMAND_BOT_TOKEN;
   const chatId = env.TELEGRAM_SCANNER_CHAT_ID || '@Industrynewsfast';
   if (!token) throw new Error('telebot-config.env에 TELEGRAM_BOT_TOKEN이 없습니다.');

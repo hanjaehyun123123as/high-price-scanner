@@ -133,6 +133,15 @@ async function main() {
   };
   await fs.writeFile(`${OUT}.tmp`, JSON.stringify(payload), 'utf8');
   await fs.rename(`${OUT}.tmp`, OUT);
+  const chartDir = path.join(DATA_DIR, 'charts');
+  await fs.mkdir(chartDir, { recursive: true });
+  const chartTargets = stocks.filter(s => s.distanceFromHigh >= -20 && s.marketCap >= 200_000_000_000 && s.volume >= 150_000);
+  await pooled(chartTargets, async stock => {
+    const response = await fetch(`https://fchart.stock.naver.com/sise.nhn?symbol=${stock.code}&timeframe=day&count=300&requestType=0`, { headers: { 'User-Agent': UA, Referer: 'https://finance.naver.com/' } });
+    const xml = await response.text();
+    const daily = [...xml.matchAll(/<item data="([^"]+)"/g)].map(m => { const [date, open, high, low, close, volume] = m[1].split('|').map(Number); return { date: String(date), open, high, low, close, volume }; });
+    await fs.writeFile(path.join(chartDir, `${stock.code}.json`), JSON.stringify({ code: stock.code, daily }), 'utf8');
+  }, 8);
   await writeStatus({ state: 'done', message: `${stocks.length}개 종목 갱신 완료`, completed: stocks.length, total: stocks.length });
   console.log(`${stocks.length} stocks saved to ${OUT}`);
 }

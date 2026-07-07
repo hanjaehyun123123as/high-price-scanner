@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 let all = [], visible = [], sort = { key: 'distanceFromHigh', dir: -1 };
+const hosted = location.hostname.endsWith('github.io');
 const fmt = n => Number(n).toLocaleString('ko-KR');
 const eok = won => `${fmt(Math.round(won / 100_000_000))}억`;
 const compact = won => won >= 1e12 ? `${(won/1e12).toFixed(1)}조` : `${Math.round(won/1e8)}억`;
@@ -20,7 +21,7 @@ function candleChart(daily, large=false, high52=0) {
 
 async function load() {
   try {
-    const res = await fetch('/api/stocks?t=' + Date.now());
+    const res = await fetch((hosted ? './data/stocks.json' : '/api/stocks') + '?t=' + Date.now());
     if (!res.ok) throw new Error();
     const data = await res.json(); all = data.stocks || [];
     const d = new Date(data.updatedAt); $('dataDate').textContent = d.toLocaleDateString('ko-KR');
@@ -47,11 +48,12 @@ function render() {
 
 let hoverTimer=0, hoverController=null;
 function positionTooltip(e){const tip=$('chartTooltip'), gap=16, w=Math.min(880,innerWidth-24), h=390;let x=e.clientX+gap,y=e.clientY+gap;if(x+w>innerWidth-8)x=e.clientX-w-gap;if(y+h>innerHeight-8)y=Math.max(8,e.clientY-h-gap);tip.style.left=`${Math.max(8,x)}px`;tip.style.top=`${y}px`}
-document.addEventListener('mouseover',e=>{const el=e.target.closest?.('.chart-hover');if(!el||el.contains(e.relatedTarget))return;clearTimeout(hoverTimer);hoverTimer=setTimeout(async()=>{const tip=$('chartTooltip');$('chartTitle').textContent=`${el.dataset.name} · 300봉 일봉`;$('chartPeriod').textContent='';$('chartLarge').className='chart-large-loading';$('chartLarge').textContent='불러오는 중…';positionTooltip(e);tip.classList.add('show');tip.setAttribute('aria-hidden','false');hoverController?.abort();hoverController=new AbortController();try{const d=await(await fetch(`/api/chart?code=${el.dataset.code}`,{signal:hoverController.signal})).json();$('chartLarge').className='';$('chartLarge').innerHTML=candleChart(d.daily,true,Number(el.dataset.high52));if(d.daily.length)$('chartPeriod').textContent=`${d.daily[0].date} — ${d.daily[d.daily.length-1].date} · ${d.daily.length}봉`;}catch(err){if(err.name!=='AbortError')$('chartLarge').textContent='차트를 불러오지 못했습니다.'}},180)});
+document.addEventListener('mouseover',e=>{const el=e.target.closest?.('.chart-hover');if(!el||el.contains(e.relatedTarget))return;clearTimeout(hoverTimer);hoverTimer=setTimeout(async()=>{const tip=$('chartTooltip');$('chartTitle').textContent=`${el.dataset.name} · 300봉 일봉`;$('chartPeriod').textContent='';$('chartLarge').className='chart-large-loading';$('chartLarge').textContent='불러오는 중…';positionTooltip(e);tip.classList.add('show');tip.setAttribute('aria-hidden','false');hoverController?.abort();hoverController=new AbortController();try{const chartUrl=hosted?`./data/charts/${el.dataset.code}.json`:`/api/chart?code=${el.dataset.code}`;const d=await(await fetch(chartUrl,{signal:hoverController.signal})).json();$('chartLarge').className='';$('chartLarge').innerHTML=candleChart(d.daily,true,Number(el.dataset.high52));if(d.daily.length)$('chartPeriod').textContent=`${d.daily[0].date} — ${d.daily[d.daily.length-1].date} · ${d.daily.length}봉`;}catch(err){if(err.name!=='AbortError')$('chartLarge').textContent='이 종목의 300봉 차트는 다음 자동 갱신 때 준비됩니다.'}},180)});
 document.addEventListener('mousemove',e=>{if($('chartTooltip').classList.contains('show'))positionTooltip(e)});
 document.addEventListener('mouseout',e=>{const el=e.target.closest?.('.chart-hover');if(!el||el.contains(e.relatedTarget))return;clearTimeout(hoverTimer);hoverController?.abort();$('chartTooltip').classList.remove('show');$('chartTooltip').setAttribute('aria-hidden','true')});
 
 async function refresh() {
+  if(hosted){alert('웹 버전은 매일 오전 7시에 자동 갱신됩니다.');return}
   const btn=$('refresh'); btn.disabled=true; btn.textContent='갱신 시작 중…';
   try { const r=await fetch('/api/refresh',{method:'POST'}); if(!r.ok&&r.status!==409) throw new Error(); poll(); }
   catch { btn.disabled=false; btn.textContent='↻ 오늘 데이터 갱신'; alert('갱신을 시작하지 못했습니다.'); }

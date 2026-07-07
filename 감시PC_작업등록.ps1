@@ -12,4 +12,14 @@ $serverAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-No
 $serverTrigger = New-ScheduledTaskTrigger -AtLogOn
 Register-ScheduledTask -TaskName '신고가레이더_서버' -Action $serverAction -Trigger $serverTrigger -Description '로그온 시 신고가 대시보드 실행' -Force | Out-Null
 
-Write-Host '감시 PC 작업 등록 완료: 매일 07:00 전송 / 로그온 시 서버 실행' -ForegroundColor Green
+Start-ScheduledTask -TaskName '신고가레이더_서버'
+Start-Sleep -Seconds 2
+try {
+  $status = (Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:4173/' -TimeoutSec 5).StatusCode
+  if ($status -ne 200) { throw "HTTP $status" }
+} catch {
+  throw "작업은 등록했지만 서버가 열리지 않았습니다. Node.js 설치 여부를 확인하세요: $($_.Exception.Message)"
+}
+
+Write-Host '감시 PC 설치 완료: 서버 실행 중 / 매일 07:00 텔레그램 전송' -ForegroundColor Green
+Write-Host '대시보드: http://127.0.0.1:4173/' -ForegroundColor Cyan
