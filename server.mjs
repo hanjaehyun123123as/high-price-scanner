@@ -10,7 +10,8 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || APP_PASSWORD;
+const DEFAULT_PASSWORD_HASH = 'b1d2db51c06057150a493b5b3f7f960f:e730302526ee20f24ff50acc761afc196f733897584a0efecb2181fd528c85ec';
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const COOKIE_NAME = 'high_scanner_session';
 let updater = null;
 const chartCache = new Map();
@@ -28,8 +29,14 @@ function sessionToken() {
   return crypto.createHmac('sha256', SESSION_SECRET).update('high-price-scanner').digest('hex');
 }
 
+function passwordMatches(password) {
+  if (APP_PASSWORD) return safeEqual(password, APP_PASSWORD);
+  const [salt, expected] = DEFAULT_PASSWORD_HASH.split(':');
+  return safeEqual(crypto.scryptSync(String(password), salt, 32).toString('hex'), expected);
+}
+
 function isAuthenticated(req) {
-  if (!APP_PASSWORD || !SESSION_SECRET) return false;
+  if (!SESSION_SECRET) return false;
   const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map(v => v.trim().split('=').map(decodeURIComponent)).filter(v => v.length === 2));
   return safeEqual(cookies[COOKIE_NAME] || '', sessionToken());
 }
@@ -60,14 +67,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
   if (url.pathname === '/login' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end(loginPage(APP_PASSWORD ? '' : '서버에 APP_PASSWORD 설정이 필요합니다.'));
+    return res.end(loginPage());
   }
   if (url.pathname === '/login' && req.method === 'POST') {
     const ip = req.socket.remoteAddress || 'unknown';
     const attempt = loginAttempts.get(ip) || { count: 0, until: 0 };
     if (attempt.until > Date.now()) { res.writeHead(429, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(loginPage('잠시 후 다시 시도하세요.')); }
     const form = await readForm(req).catch(() => new URLSearchParams());
-    if (APP_PASSWORD && safeEqual(form.get('password') || '', APP_PASSWORD)) {
+    if (passwordMatches(form.get('password') || '')) {
       loginAttempts.delete(ip);
       const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
       res.writeHead(303, { Location: '/', 'Set-Cookie': `${COOKIE_NAME}=${sessionToken()}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=2592000`, 'Cache-Control': 'no-store' });
