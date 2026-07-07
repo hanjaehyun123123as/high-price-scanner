@@ -7,3 +7,4 @@ node_modules/
 .tools/
 외부링크.log
 .DS_Store
+.secret-tools/
