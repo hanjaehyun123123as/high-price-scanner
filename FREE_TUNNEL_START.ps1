@@ -31,6 +31,14 @@ function Wait-Health {
 }
 
 $node = Find-Node
+$localPasswordFile = Join-Path $here 'local-password.txt'
+
+if (Test-Path $localPasswordFile) {
+  $localPassword = (Get-Content -Raw -LiteralPath $localPasswordFile).Trim()
+  if ($localPassword) {
+    $env:APP_PASSWORD = $localPassword
+  }
+}
 
 if (-not $env:APP_PASSWORD) {
   $bytes = New-Object byte[] 9

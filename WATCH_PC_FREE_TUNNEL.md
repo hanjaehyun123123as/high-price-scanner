@@ -25,6 +25,18 @@ https://xxxx-yyyy-zzzz.trycloudflare.com
 3. 대시보드에서 `오늘 데이터 갱신` 버튼 클릭
 4. 그 순간 감시PC가 네이버 데이터를 다시 받아와서 조건을 재계산
 
+## 비밀번호 고정하기
+
+감시PC 폴더 안에 `local-password.txt` 파일을 만들면 그 값을 로그인 비밀번호로 씁니다. 이 파일은 GitHub에 올라가지 않도록 제외되어 있습니다.
+
+예:
+
+```powershell
+cd $env:USERPROFILE\Documents\high-price-scanner
+Set-Content -Encoding ascii -Path .\local-password.txt -Value '<원하는비밀번호>'
+powershell -ExecutionPolicy Bypass -File .\FREE_TUNNEL_START.ps1
+```
+
 ## 주의
 
 - GitHub Pages 주소는 저장된 데이터 보기용입니다.
