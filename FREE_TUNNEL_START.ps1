@@ -32,21 +32,67 @@ function Wait-Health {
 
 $node = Find-Node
 
+if (-not $env:APP_PASSWORD) {
+  $bytes = New-Object byte[] 9
+  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  $env:APP_PASSWORD = 'scanner-' + [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', 'A').Replace('/', 'B')
+}
+if (-not $env:SESSION_SECRET) {
+  $bytes = New-Object byte[] 32
+  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  $env:SESSION_SECRET = [Convert]::ToBase64String($bytes)
+}
+
 try {
   $serverReady = (Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:4173/health' -TimeoutSec 2).StatusCode -eq 200
 } catch {
   $serverReady = $false
 }
 
-if (-not $serverReady) {
+$scannerProcesses = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+  Where-Object {
+    $_.CommandLine -and
+    $_.CommandLine -match 'server\.mjs' -and
+    $_.CommandLine -match [regex]::Escape($here)
+  }
+
+$portProcesses = @()
+try {
+  $portProcesses = Get-NetTCPConnection -LocalPort 4173 -State Listen -ErrorAction SilentlyContinue |
+    ForEach-Object {
+      try { Get-Process -Id $_.OwningProcess -ErrorAction Stop } catch { $null }
+    } |
+    Where-Object { $_ -and $_.ProcessName -match 'node' }
+} catch {}
+
+$serverProcessesToRestart = @($scannerProcesses)
+foreach ($process in $portProcesses) {
+  if ($serverProcessesToRestart.ProcessId -notcontains $process.Id) {
+    $serverProcessesToRestart += [pscustomobject]@{ ProcessId = $process.Id }
+  }
+}
+
+if ($serverReady -and $serverProcessesToRestart) {
+  Write-Host '[1/3] Restarting scanner server with the login password shown below ...' -ForegroundColor Cyan
+  foreach ($process in $serverProcessesToRestart) {
+    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+  Start-Sleep -Seconds 1
+  $serverReady = $false
+}
+
+if ($serverReady) {
+  Write-Host '[1/3] A scanner server is already running on port 4173.' -ForegroundColor Yellow
+  Write-Host '      If the password is still rejected, close old node.exe server processes or reboot the watch PC, then run this again.' -ForegroundColor Yellow
+} else {
   Write-Host '[1/3] Starting high-price scanner server on http://127.0.0.1:4173 ...' -ForegroundColor Cyan
-  Start-Process -FilePath $node -ArgumentList 'server.mjs' -WorkingDirectory $here -WindowStyle Hidden
+  Start-Process -FilePath $node -ArgumentList (Join-Path $here 'server.mjs') -WorkingDirectory $here -WindowStyle Hidden
   if (-not (Wait-Health -Seconds 25)) {
     throw 'The scanner server did not start. Check update.log or run: node server.mjs'
   }
-} else {
-  Write-Host '[1/3] Scanner server is already running.' -ForegroundColor Cyan
 }
+
+Write-Host "LOGIN PASSWORD: $env:APP_PASSWORD" -ForegroundColor Green
 
 $tools = Join-Path $here '.tools'
 $cloudflared = Join-Path $tools 'cloudflared.exe'
