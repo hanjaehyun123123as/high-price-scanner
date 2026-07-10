@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.mjs",
-    "update": "node update-data.mjs"
+    "update": "node update-data.mjs",
+    "tunnel": "powershell -ExecutionPolicy Bypass -File .\\FREE_TUNNEL_START.ps1"
   }
 }
