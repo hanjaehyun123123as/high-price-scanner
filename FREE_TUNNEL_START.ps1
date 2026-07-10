@@ -30,6 +30,18 @@ function Wait-Health {
   return $false
 }
 
+function New-RandomBytes {
+  param([int]$Length)
+  $bytes = New-Object byte[] $Length
+  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+  try {
+    $rng.GetBytes($bytes)
+  } finally {
+    $rng.Dispose()
+  }
+  return $bytes
+}
+
 $node = Find-Node
 $localPasswordFile = Join-Path $here 'local-password.txt'
 
@@ -41,13 +53,11 @@ if (Test-Path $localPasswordFile) {
 }
 
 if (-not $env:APP_PASSWORD) {
-  $bytes = New-Object byte[] 9
-  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  $bytes = New-RandomBytes -Length 9
   $env:APP_PASSWORD = 'scanner-' + [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', 'A').Replace('/', 'B')
 }
 if (-not $env:SESSION_SECRET) {
-  $bytes = New-Object byte[] 32
-  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  $bytes = New-RandomBytes -Length 32
   $env:SESSION_SECRET = [Convert]::ToBase64String($bytes)
 }
 
