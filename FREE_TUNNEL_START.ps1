@@ -65,4 +65,20 @@ Write-Host 'Copy the https://....trycloudflare.com address shown below and open 
 Write-Host 'Keep this PowerShell window open. If you close it or reboot the watch PC, the free address may change.' -ForegroundColor Yellow
 Write-Host ''
 
-& $cloudflared tunnel --url http://127.0.0.1:4173 --no-autoupdate 2>&1 | Tee-Object -FilePath $log -Append
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+  & $cloudflared tunnel --url http://127.0.0.1:4173 --no-autoupdate 2>&1 |
+    ForEach-Object {
+      $line = $_.ToString()
+      Add-Content -LiteralPath $log -Value $line
+      if ($line -match 'https://[a-zA-Z0-9-]+\.trycloudflare\.com') {
+        Write-Host ''
+        Write-Host "FREE TUNNEL ADDRESS: $($Matches[0])" -ForegroundColor Green
+        Write-Host ''
+      }
+      Write-Host $line
+    }
+} finally {
+  $ErrorActionPreference = $previousErrorActionPreference
+}
